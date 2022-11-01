@@ -1,0 +1,65 @@
+version: '3.5'
+ 
+services:
+ microservice-assinatura:
+    image: 957296915963.dkr.ecr.us-east-1.amazonaws.com/microservice-assinatura:latest
+    depends_on:
+      - "mongo"
+    environment:
+      - "MongoDbAssinaturaConfiguration__ConnectionString=mongodb://devs:gwEg4258npNjUGCArcTmZDF4h3HVY2es@host.docker.internal:27117/admin?ssl=false"
+      - "AWS__Region=us-east-1"
+      - "AWS_ACCESS_KEY_ID=xxx"
+      - "AWS_SECRET_ACCESS_KEY=xxx"
+
+ microservice-reserva-hospedagens:
+    image: 957296915963.dkr.ecr.us-east-1.amazonaws.com/microservice-reserva-hospedagens:latest
+    depends_on:
+      - "mongo"
+      - "redis"
+    environment:
+      - "MongoDbConfiguration__ConnectionString=mongodb://devs:gwEg4258npNjUGCArcTmZDF4h3HVY2es@host.docker.internal:27117/admin?ssl=false"
+      - "PaymentMongoDbConfiguration__ConnectionString=mongodb://devs:gwEg4258npNjUGCArcTmZDF4h3HVY2es@host.docker.internal:27117/admin?ssl=false"
+      - "RedisConnection__ConnectionString=redis"
+      - "SnsConfiguration__ArnTopico=arn:aws:sns:us-east-1:000000000000:SnsBookingTopico"
+      - "AWS__Region=us-east-1"
+      - "AWS_ACCESS_KEY_ID=xxx"
+      - "AWS_SECRET_ACCESS_KEY=xxx"
+
+ microservice-reserva-aereo: 
+    image: 957296915963.dkr.ecr.us-east-1.amazonaws.com/microservice-reserva-aereo:latest
+    depends_on:
+      - "mongo"
+      - "redis"
+    environment:
+      - "MongoDbConfiguration__ConnectionString=mongodb://devs:gwEg4258npNjUGCArcTmZDF4h3HVY2es@host.docker.internal:27117/admin?ssl=false"
+      - "RedisConnection__ConnectionString=redis"
+
+ localstack:
+    image: localstack/localstack:0.12.2
+    container_name: localstack_demo
+    ports:
+      - '4566:4566'
+      - '5003:8080'
+    environment:
+      - SERVICES=sns
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=xxx
+      - AWS_SECRET_ACCESS_KEY=xxx
+      - HOSTNAME=localhost
+      - HOSTNAME_EXTERNAL=localhost
+    volumes:
+      - './.localstack:/tmp/localstack'
+      - '/var/run/docker.sock:/var/run/docker.sock'
+      - './fixtures/aws/aws.sh:/docker-entrypoint-initaws.d/aws.sh'
+
+ mongo:
+    image: mongo
+    volumes:
+      - "./mongo-fixtures/mongoAssinatura.js:/docker-entrypoint-initdb.d/mongoAssinatura.js"
+      - "./mongo-fixtures/mongoReserva.js:/docker-entrypoint-initdb.d/mongoReserva.js"
+      - "./mongo-fixtures/mongoReservaAereo.js:/docker-entrypoint-initdb.d/mongoReservaAereo.js"
+
+ redis:
+    image: redis

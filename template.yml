@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform:
+- AWS::Serverless-2016-10-31
+Parameters:
+  Environment:
+    Type: String
+    Default: development
+  Owner:
+    Type: String
+Mappings:
+  ConfigMap:
+    staging:
+      EnvironmentName: staging
+      Schedule: cron(0/3 * * * ? *)
+    production:
+      EnvironmentName: production
+      Schedule: cron(0 3 * * ? *)
+Resources:
+  ScheduledEvent:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs12.x
+      Handler: src/handlers/scheduledAtivacaoAssinaturaHandler.handle
+      Events:
+        CloudWatchEvent: 
+          Type: Schedule 
+          Properties: 
+            Schedule: !FindInMap
+            - ConfigMap
+            - !Ref Environment
+            - Schedule
+      MemorySize: 128
+      Timeout: 100
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+      Role: !GetAtt Role.Arn
+      VpcConfig:
+        SecurityGroupIds:
+        - !Ref SecurityGroup
+        SubnetIds:
+        - !ImportValue platform-private-subnet-1
+      Tags:
+        Name: !Ref AWS::StackName
+        Owner: !Ref Owner
+        Environment: !Ref Environment
+  Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs12.x
+      Handler: src/handlers/ativacaoPosReservaHandler.handle
+      Events:
+        SNSTopicEvent:
+          Type: SNS
+          Properties:
+            Topic:
+              Fn::ImportValue:
+                !Sub 'microservice-reserva-hospedagens-${Environment}-booking-sns-topic'
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+      Role: !GetAtt Role.Arn
+      VpcConfig:
+        SecurityGroupIds:
+        - !Ref SecurityGroup
+        SubnetIds:
+        - !ImportValue platform-private-subnet-1
+      Tags:
+        Name: !Ref AWS::StackName
+        Owner: !Ref Owner
+        Environment: !Ref Environment
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn:
+          Fn::ImportValue:
+            !Sub 'platform-dead-letter-${Environment}-queue-arn'
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub 'Rules for ${AWS::StackName}.'
+      VpcId: !ImportValue platform-vpc
+      SecurityGroupEgress:
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: -1
+        Description: Allow all outbound traffic.
+      Tags:
+      - Key: Name
+        Value: !Ref AWS::StackName
+      - Key: Owner
+        Value: !Ref Owner
+      - Key: Environment
+        Value: !Ref Environment
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref AWS::StackName
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: 
+            - 'lambda.amazonaws.com'
+          Action:
+          - 'sts:AssumeRole'
+      Policies:
+      - PolicyName: !Ref AWS::StackName
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - 'logs:CreateLogGroup'
+            - 'logs:CreateLogStream'
+            - 'logs:PutLogEvents'
+            - 'ec2:CreateNetworkInterface'
+            - 'ec2:DescribeNetworkInterfaces'
+            - 'ec2:DeleteNetworkInterface'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - 'sqs:SendMessage'
+            Resource: 
+            - Fn::ImportValue:
+                !Sub 'platform-dead-letter-${Environment}-queue-arn'

@@ -1,0 +1,29 @@
+version: '3.5'
+
+services:
+  
+  microservice-assinatura:
+    ports:
+      - "32303:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+
+  microservice-reserva-hospedagens:
+    ports:
+      - "32316:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+
+  microservice-reserva-aereo:
+    ports:
+      - "32322:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development 
+
+  mongo:
+    ports:
+      - "27018:27017"
+      
+  redis:
+    ports:
+      - "32771:6379"
